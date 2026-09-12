@@ -1,0 +1,19 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'org.jpi59.ethictuner'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'org.jpi59.ethictuner'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+    buildTypes {
+        release { minifyEnabled true; shrinkResources true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }
+    }
+    dependenciesInfo { includeInApk = false; includeInBundle = false }
+}
+
+dependencies { testImplementation 'junit:junit:4.13.2' }

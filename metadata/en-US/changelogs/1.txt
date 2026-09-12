@@ -1,0 +1,1 @@
+Initial public release: local pitch analysis, instrument presets, notation selection, calibration and accessible light/dark themes.

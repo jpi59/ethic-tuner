@@ -1,0 +1,295 @@
+/* Copyright (C) 2026 jpi59. SPDX-License-Identifier: GPL-3.0-or-later */
+package org.jpi59.ethictuner;
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.os.Bundle;
+import android.os.Build;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.SeekBar;
+import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.Switch;
+import android.widget.TextView;
+
+/** A local chromatic tuner. Audio samples are analysed in memory and discarded. */
+public final class MainActivity extends Activity {
+    private static final int REQUEST_MICROPHONE = 10;
+    private static final String[] INSTRUMENTS = {"Cromático", "Guitarra", "Bajo", "Ukelele", "Violín", "Teclado / Piano", "Flauta dulce", "Flauta travesera", "Clarinete en Si♭", "Saxofón sopranino (Mi♭)", "Saxofón soprano (Si♭)", "Saxofón alto (Mi♭)", "Saxofón tenor (Si♭)", "Saxofón barítono (Mi♭)", "Saxofón bajo (Si♭)", "Saxofón contrabajo (Mi♭)"};
+    private static final String[] INSTRUMENT_GUIDES_ENGLISH = {"Cualquier nota", "Afinación estándar: E A D G B E", "Afinación estándar: E A D G", "Afinación estándar: G C E A", "Afinación estándar: G D A E", "Toca una tecla; usa A4 para calibrar", "Nota de concierto", "Nota de concierto", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭"};
+    private static final String[] INSTRUMENT_GUIDES_LATIN = {"Cualquier nota", "Afinación estándar: Mi La Re Sol Si Mi", "Afinación estándar: Mi La Re Sol", "Afinación estándar: Sol Do Mi La", "Afinación estándar: Sol Re La Mi", "Toca una tecla; usa A4 para calibrar", "Nota de concierto", "Nota de concierto", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭", "Nota escrita · instrumento en Si♭", "Nota escrita · instrumento en Mi♭"};
+    private static final int[] NOTE_TRANSPOSITIONS = {0, 0, 0, 0, 0, 0, 0, 0, 2, 9, 2, 9, 2, 9, 2, 9};
+    private static final String[] NOTATIONS = {"Notación inglesa · C D E", "Notación latina · Do Re Mi"};
+    private static final String[] ENGLISH_NOTES = {"C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"};
+    private static final String[] LATIN_NOTES = {"Do", "Do♯", "Re", "Re♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"};
+    private TextView note, frequency, cents, status, calibration, instrumentGuide, tuningState, signal;
+    private TuningGaugeView gauge;
+    private Button toggle;
+    private LinearLayout root;
+    private TextView title, privacy;
+    private Button legal;
+    private Button settings;
+    private Switch darkSwitch;
+    private Spinner instruments, notationSpinner;
+    private ArrayAdapter<String> instrumentAdapter, notationAdapter;
+    private AlertDialog settingsDialog;
+    private LinearLayout settingsPanel;
+    private TextView instrumentLabel, notationLabel;
+    private SharedPreferences preferences;
+    private boolean darkMode, hasPitch, inTune, acceptingNotationChanges, acceptingInstrumentChanges;
+    private int lastDeviation;
+    private int selectedInstrument, noteTransposition, notation;
+    private double lastHz, lastConfidence;
+    private volatile boolean running;
+    private volatile long captureGeneration;
+    private volatile AudioRecord activeRecorder;
+    private final Object captureLock = new Object();
+    private long lastNoPitchUpdate;
+    private int a4 = 440;
+
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        preferences = getSharedPreferences("appearance", MODE_PRIVATE);
+        darkMode = preferences.getBoolean("dark_mode", false); a4 = preferences.getInt("a4", 440); selectedInstrument = Math.max(0, Math.min(INSTRUMENTS.length - 1, preferences.getInt("instrument", 0))); noteTransposition = NOTE_TRANSPOSITIONS[selectedInstrument]; notation = Math.max(0, Math.min(NOTATIONS.length - 1, preferences.getInt("notation", 0)));
+        buildUi();
+    }
+    private void buildUi() {
+        boolean landscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
+        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER_HORIZONTAL); root.setPadding(dp(landscape ? 16 : 20), dp(landscape ? 12 : 20), dp(landscape ? 16 : 20), dp(landscape ? 12 : 16));
+        LinearLayout header = column();
+        LinearLayout tunerPanel = column();
+        LinearLayout controls = column();
+        title = text("Ethic Tuner", landscape ? 24 : 28); medium(title); header.addView(title);
+        settings = new Button(this); settings.setText(R.string.settings); settings.setTextSize(16); settings.setAllCaps(false); medium(settings); settings.setGravity(Gravity.CENTER); settings.setPadding(dp(20), dp(8), dp(20), dp(8)); settings.setMinWidth(0); settings.setMinHeight(dp(48)); settings.setContentDescription(getString(R.string.settings)); settings.setOnClickListener(v -> showSettings());
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(-2, -2); settingsParams.setMargins(0, dp(8), 0, dp(8)); header.addView(settings, settingsParams);
+        status = text(getString(R.string.waiting), 15);
+        darkSwitch = new Switch(this); darkSwitch.setText(R.string.dark_mode); darkSwitch.setTextSize(20); medium(darkSwitch); darkSwitch.setPadding(dp(7), 0, 0, 0); darkSwitch.setGravity(Gravity.CENTER_VERTICAL); darkSwitch.setContentDescription(getString(R.string.dark_mode)); darkSwitch.setChecked(darkMode); darkSwitch.setOnCheckedChangeListener((button, checked) -> { darkMode = checked; preferences.edit().putBoolean("dark_mode", checked).apply(); applyTheme(); }); header.addView(darkSwitch, new LinearLayout.LayoutParams(-1, -2));
+        tunerPanel.setPadding(0, dp(landscape ? 0 : 4), 0, 0);
+        note = text("—", noteSize()); medium(note); tunerPanel.addView(note);
+        frequency = text("— Hz", 22); cents = text("— cents", 22); numeric(frequency); numeric(cents); tunerPanel.addView(frequency); tunerPanel.addView(cents);
+        gauge = new TuningGaugeView(this); tunerPanel.addView(gauge, new LinearLayout.LayoutParams(-1, dp(landscape ? 140 : 176)));
+        tuningState = text(getString(R.string.pitch_waiting), 18); medium(tuningState); tunerPanel.addView(tuningState);
+        signal = text(getString(R.string.signal_waiting), 14); signal.setVisibility(hasPitch ? View.VISIBLE : View.INVISIBLE); tunerPanel.addView(signal);
+        toggle = new Button(this); toggle.setText(R.string.start); toggle.setTextSize(18); toggle.setAllCaps(false); medium(toggle); toggle.setOnClickListener(v -> requestOrToggle());
+        LinearLayout.LayoutParams primaryAction = new LinearLayout.LayoutParams(-1, dp(52)); primaryAction.setMargins(0, dp(8), 0, dp(2)); controls.addView(toggle, primaryAction);
+        legal = new Button(this); legal.setText(R.string.license_action); legal.setTextSize(15); legal.setAllCaps(false); medium(legal); legal.setGravity(Gravity.CENTER); legal.setMinHeight(dp(48)); legal.setPadding(dp(12), dp(8), dp(12), dp(8)); legal.setBackgroundColor(Color.TRANSPARENT); legal.setContentDescription(getString(R.string.license_action)); legal.setOnClickListener(v -> showLegalNotice()); controls.addView(legal);
+        privacy = text(getString(R.string.privacy), 13); privacy.setGravity(Gravity.CENTER); privacy.setPadding(0, dp(landscape ? 6 : 10), 0, 0);
+        if (landscape) {
+            LinearLayout leftColumn = column(); leftColumn.addView(header); leftColumn.addView(controls); leftColumn.addView(privacy);
+            root.setOrientation(LinearLayout.HORIZONTAL); root.addView(leftColumn, weighted()); root.addView(tunerPanel, weighted());
+        } else { root.addView(header); root.addView(tunerPanel); root.addView(controls); root.addView(privacy); }
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(root);
+        setContentView(scroll);
+        applyTheme();
+        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); gauge.setPitch(lastDeviation, hasPitch); if (hasPitch) updateSignal(lastConfidence); }
+    }
+    private LinearLayout column() { LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setGravity(Gravity.CENTER_HORIZONTAL); return layout; }
+    private LinearLayout.LayoutParams weighted() { return new LinearLayout.LayoutParams(0, -2, 1f); }
+    private ArrayAdapter<String> themedAdapter(String[] values) {
+        return new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, values) {
+            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) { return colourRow(super.getView(position, convertView, parent)); }
+            @Override public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) { return colourRow(super.getDropDownView(position, convertView, parent)); }
+            private View colourRow(View view) {
+                if (view instanceof TextView) {
+                    TextView row = (TextView) view;
+                    row.setTextColor(darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
+                    row.setTextSize(20);
+                    row.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+                }
+                return view;
+            }
+        };
+    }
+    private int noteSize() { return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 68 : 88; }
+    private String guideFor(int instrument) { return notation == 1 ? INSTRUMENT_GUIDES_LATIN[instrument] : INSTRUMENT_GUIDES_ENGLISH[instrument]; }
+    private void updateInstrumentGuide() {
+        if (instrumentGuide == null) return;
+        instrumentGuide.setText(guideFor(selectedInstrument));
+        instrumentGuide.setVisibility(selectedInstrument == 0 ? View.GONE : View.VISIBLE);
+    }
+    private void selectInstrument(int position) {
+        selectedInstrument = position; noteTransposition = NOTE_TRANSPOSITIONS[position]; preferences.edit().putInt("instrument", position).apply(); updateInstrumentGuide();
+        if (lastHz > 0) showPitch(lastHz, lastConfidence);
+    }
+    private void selectNotation(int position) {
+        notation = position;
+        preferences.edit().putInt("notation", position).apply();
+        updateInstrumentGuide();
+        if (lastHz > 0) showPitch(lastHz, lastConfidence);
+    }
+    private void showSettings() {
+        acceptingInstrumentChanges = false;
+        acceptingNotationChanges = false;
+        LinearLayout panel = column();
+        panel.setPadding(dp(24), dp(8), dp(24), 0);
+        panel.setContentDescription("Ajustes de instrumento, notación y calibración");
+        TextView instrumentLabel = text(getString(R.string.instrument), 15); medium(instrumentLabel); panel.addView(instrumentLabel);
+        instruments = new Spinner(this); instrumentAdapter = themedAdapter(INSTRUMENTS); instruments.setAdapter(instrumentAdapter); instruments.setContentDescription(getString(R.string.instrument)); panel.addView(instruments, new LinearLayout.LayoutParams(-1, -2));
+        instrumentGuide = text(guideFor(selectedInstrument), 15); instrumentGuide.setPadding(0, 0, 0, dp(8)); panel.addView(instrumentGuide); updateInstrumentGuide();
+        TextView notationLabel = text(getString(R.string.notation), 15); medium(notationLabel); panel.addView(notationLabel);
+        notationSpinner = new Spinner(this); notationAdapter = themedAdapter(NOTATIONS); notationSpinner.setAdapter(notationAdapter); notationSpinner.setContentDescription(getString(R.string.notation)); panel.addView(notationSpinner, new LinearLayout.LayoutParams(-1, -2));
+        calibration = text(getString(R.string.calibration, a4), 17); numeric(calibration); calibration.setPadding(0, dp(16), 0, 0); panel.addView(calibration);
+        SeekBar slider = new SeekBar(this); slider.setMax(32); slider.setProgress(Math.max(0, Math.min(32, a4 - 424))); slider.setContentDescription(getString(R.string.calibration, a4)); panel.addView(slider, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dialog = new AlertDialog.Builder(this).setView(panel).setPositiveButton(R.string.done, null).create();
+        instruments.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> parent) { }
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { if (acceptingInstrumentChanges) selectInstrument(position); }
+        });
+        instruments.setSelection(selectedInstrument, false);
+        instruments.post(() -> { instruments.setSelection(selectedInstrument, false); acceptingInstrumentChanges = true; });
+        notationSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            public void onNothingSelected(AdapterView<?> parent) { }
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { if (acceptingNotationChanges) selectNotation(position); }
+        });
+        notationSpinner.setSelection(notation, false);
+        notationSpinner.post(() -> { notationSpinner.setSelection(notation, false); acceptingNotationChanges = true; });
+        slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) { a4 = 424 + progress; calibration.setText(getString(R.string.calibration, a4)); bar.setContentDescription(getString(R.string.calibration, a4)); preferences.edit().putInt("a4", a4).apply(); }
+            public void onStartTrackingTouch(SeekBar bar) { }
+            public void onStopTrackingTouch(SeekBar bar) { }
+        });
+        dialog.show();
+        settingsDialog = dialog; settingsPanel = panel; this.instrumentLabel = instrumentLabel; this.notationLabel = notationLabel;
+        dialog.setOnDismissListener(ignored -> { settingsDialog = null; settingsPanel = null; instrumentGuide = null; this.notationLabel = null; });
+        styleSettingsPanel();
+    }
+    private void styleSettingsPanel() {
+        if (settingsPanel == null || settingsDialog == null) return;
+        int ink = darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink);
+        int muted = darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted);
+        int surface = darkMode ? Color.rgb(30, 35, 32) : Color.rgb(255, 255, 255);
+        settingsPanel.setBackgroundColor(surface); instrumentLabel.setTextColor(muted); instrumentGuide.setTextColor(muted); notationLabel.setTextColor(muted); calibration.setTextColor(ink);
+        instruments.getBackground().setTint(ink); instruments.setPopupBackgroundDrawable(new ColorDrawable(surface)); notationSpinner.getBackground().setTint(ink); notationSpinner.setPopupBackgroundDrawable(new ColorDrawable(surface));
+        int titleId = getResources().getIdentifier("alertTitle", "id", "android");
+        TextView dialogTitle = titleId == 0 ? null : settingsDialog.findViewById(titleId);
+        if (dialogTitle != null) dialogTitle.setTextColor(ink);
+        Button done = settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        if (done != null) { done.setTextColor(actionColor()); done.setTextSize(16); done.setAllCaps(false); medium(done); }
+        if (settingsDialog.getWindow() != null) settingsDialog.getWindow().setBackgroundDrawable(new ColorDrawable(surface));
+    }
+    private void applyTheme() {
+        int ink = darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink);
+        int muted = darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted);
+        int surface = darkMode ? Color.rgb(20, 23, 21) : getColor(R.color.surface);
+        int action = actionColor();
+        root.setBackgroundColor(surface); getWindow().setStatusBarColor(surface); getWindow().setNavigationBarColor(surface);
+        int systemBars = darkMode ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (!darkMode && Build.VERSION.SDK_INT >= 26) systemBars |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        getWindow().getDecorView().setSystemUiVisibility(systemBars);
+        title.setTextColor(ink); status.setTextColor(muted); darkSwitch.setTextColor(ink); settings.setTextColor(action); settings.setBackground(roundedBackground(surface, action, 20)); note.setTextColor(action); frequency.setTextColor(ink); cents.setTextColor(ink); legal.setTextColor(action); privacy.setTextColor(muted); privacy.setAlpha(1f); signal.setTextColor(muted);
+        toggle.setTextColor(Color.rgb(248, 247, 243)); toggle.setBackground(roundedBackground(getColor(R.color.accent), getColor(R.color.accent), 18));
+        tuningState.setTextColor(!hasPitch ? muted : inTune ? action : ink);
+        gauge.setDarkMode(darkMode);
+        if (settingsDialog != null && settingsDialog.isShowing()) {
+            if (instrumentAdapter != null) instrumentAdapter.notifyDataSetChanged();
+            if (notationAdapter != null) notationAdapter.notifyDataSetChanged();
+            if (instrumentGuide != null) instrumentGuide.setTextColor(muted);
+            styleSettingsPanel();
+        }
+    }
+    private int actionColor() { return darkMode ? getColor(R.color.accent_dark) : getColor(R.color.accent); }
+    /**
+     * Every readout has a fixed one-line metrics box.  Pitch changes therefore repaint only
+     * their glyphs; they never cause a line wrap, a baseline shift, or a layout transition.
+     */
+    private TextView text(String value, int size) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(size);
+        v.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        v.setGravity(Gravity.CENTER);
+        v.setSingleLine(true);
+        v.setIncludeFontPadding(false);
+        v.setPadding(0, dp(5), 0, dp(5));
+        return v;
+    }
+    private void medium(TextView view) { view.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL)); }
+    private void numeric(TextView view) { view.setFontFeatureSettings("tnum"); }
+    private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
+    private GradientDrawable roundedBackground(int fill, int stroke, int radius) { GradientDrawable background = new GradientDrawable(); background.setColor(fill); background.setCornerRadius(dp(radius)); background.setStroke(dp(1), stroke); return background; }
+    private void showLegalNotice() { new AlertDialog.Builder(this).setTitle(R.string.license_title).setMessage(R.string.license_message).setPositiveButton(android.R.string.ok, null).show(); }
+    private void requestOrToggle() {
+        if (running) { stop(); return; }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { start(); return; }
+        new AlertDialog.Builder(this).setTitle(R.string.microphone_title).setMessage(R.string.permission_rationale)
+                .setNegativeButton(R.string.not_now, (dialog, which) -> showPermissionNeeded())
+                .setPositiveButton(R.string.continue_action, (dialog, which) -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MICROPHONE)).show();
+    }
+    @Override public void onRequestPermissionsResult(int r, String[] p, int[] g) { super.onRequestPermissionsResult(r, p, g); if (r == REQUEST_MICROPHONE && g.length > 0 && g[0] == PackageManager.PERMISSION_GRANTED) start(); else showPermissionNeeded(); }
+    private void showPermissionNeeded() { status.setText(R.string.permission_needed); tuningState.setText(R.string.pitch_waiting); }
+    private void start() {
+        if (running) return;
+        running = true; long generation = ++captureGeneration; toggle.setText(R.string.stop); status.setText(R.string.listening); signal.setVisibility(View.INVISIBLE);
+        new Thread(() -> listen(generation), "EthicTunerAudio").start();
+    }
+    private void stop() {
+        running = false; ++captureGeneration; AudioRecord recorder = activeRecorder;
+        if (recorder != null) try { recorder.stop(); } catch (IllegalStateException ignored) { }
+        hasPitch = false; lastConfidence = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (gauge != null) gauge.setPitch(0, false);
+        if (tuningState != null) { tuningState.setText(R.string.pitch_waiting); tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted)); signal.setVisibility(View.INVISIBLE); }
+    }
+    private boolean captureIsCurrent(long generation) { return running && generation == captureGeneration; }
+    @SuppressLint("MissingPermission") private void listen(long generation) {
+        synchronized (captureLock) {
+            if (!captureIsCurrent(generation)) return;
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { runOnUiThread(this::showPermissionNeeded); return; }
+            final int rate = 44100; int minimum = AudioRecord.getMinBufferSize(rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            if (minimum <= 0) { showAudioProblem(R.string.audio_unavailable); return; }
+            AudioRecord recorder = openRecorder(rate, Math.max(4096, minimum * 2));
+            if (recorder == null) { showAudioProblem(R.string.audio_unavailable); return; }
+            activeRecorder = recorder; PitchDetector detector = new PitchDetector(); short[] samples = new short[4096]; double smoothedHz = 0;
+            try {
+                recorder.startRecording();
+                while (captureIsCurrent(generation)) {
+                    int count = recorder.read(samples, 0, samples.length, AudioRecord.READ_BLOCKING);
+                    if (count <= 0) { showNoPitch(); continue; }
+                    PitchDetector.Result result = detector.detect(samples, count, recorder.getSampleRate());
+                    if (result == null) { showNoPitch(); continue; }
+                    double centsFromPrevious = smoothedHz == 0 ? 0 : 1200 * Math.log(result.frequencyHz / smoothedHz) / Math.log(2);
+                    smoothedHz = smoothedHz == 0 || Math.abs(centsFromPrevious) > 150 ? result.frequencyHz : .35 * result.frequencyHz + .65 * smoothedHz;
+                    showPitch(smoothedHz, result.confidence);
+                }
+            } catch (IllegalStateException | SecurityException error) { if (captureIsCurrent(generation)) showAudioProblem(R.string.audio_unavailable); }
+            finally {
+                try { recorder.stop(); } catch (IllegalStateException ignored) { }
+                recorder.release(); if (activeRecorder == recorder) activeRecorder = null;
+            }
+        }
+    }
+    @SuppressLint("MissingPermission") private AudioRecord openRecorder(int rate, int size) {
+        for (int source : new int[]{android.media.MediaRecorder.AudioSource.UNPROCESSED, android.media.MediaRecorder.AudioSource.MIC}) {
+            try {
+                AudioRecord recorder = new AudioRecord(source, rate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size);
+                if (recorder.getState() == AudioRecord.STATE_INITIALIZED) return recorder;
+                recorder.release();
+            } catch (IllegalArgumentException | SecurityException ignored) { }
+        }
+        return null;
+    }
+    private void showAudioProblem(int message) { runOnUiThread(() -> { if (running) { stop(); status.setText(message); signal.setText(R.string.signal_unavailable); } }); }
+    private void showNoPitch() {
+        long now = System.currentTimeMillis(); if (now - lastNoPitchUpdate < 500) return; lastNoPitchUpdate = now;
+        runOnUiThread(() -> { if (running) { hasPitch = false; lastHz = 0; note.setText(R.string.no_note); frequency.setText(R.string.no_frequency); cents.setText(R.string.no_cents); gauge.setPitch(0, false); tuningState.setText(R.string.pitch_waiting); signal.setVisibility(View.INVISIBLE); } });
+    }
+    private void showPitch(double hz, double confidence) { double midi = 69 + 12 * Math.log(hz / a4) / Math.log(2); int nearest = (int)Math.round(midi); int deviation = (int)Math.round(100 * (midi-nearest)); String[] names = notation == 1 ? LATIN_NOTES : ENGLISH_NOTES; int displayedNote = nearest + noteTransposition; String name=names[(displayedNote%12+12)%12]+(displayedNote/12-1); boolean pitchInTune=Math.abs(deviation)<=5; runOnUiThread(() -> { hasPitch=true; inTune=pitchInTune; lastHz=hz; lastDeviation=deviation; lastConfidence=confidence; note.setText(name); frequency.setText(String.format(java.util.Locale.US,"%.1f Hz",hz)); cents.setText(String.format(java.util.Locale.US,"%+d cents",deviation)); gauge.setPitch(deviation, true); tuningState.setText(inTune ? R.string.in_tune : deviation < 0 ? R.string.pitch_low : R.string.pitch_high); tuningState.setTextColor(inTune ? actionColor() : darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink)); updateSignal(confidence); }); }
+    private void updateSignal(double confidence) { signal.setVisibility(confidence > 0 ? View.VISIBLE : View.INVISIBLE); if (confidence > 0) signal.setText(getString(R.string.signal_stable, Math.round(confidence * 100))); }
+    @Override public void onConfigurationChanged(Configuration configuration) { super.onConfigurationChanged(configuration); buildUi(); }
+    @Override protected void onPause() { stop(); super.onPause(); }
+}

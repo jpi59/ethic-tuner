@@ -1,0 +1,19 @@
+<resources>
+ <string name="app_name">Ethic Tuner</string>
+ <string name="permission_rationale">Ethic Tuner usa el micrófono únicamente mientras afinas. Analiza el sonido en este dispositivo: no graba, no guarda ni envía audio.</string>
+ <string name="microphone_title">Permiso de micrófono</string><string name="continue_action">Continuar</string><string name="not_now">Ahora no</string><string name="permission_needed">Necesitas permitir el micrófono para afinar</string>
+ <string name="start">Empezar a afinar</string><string name="stop">Detener</string>
+ <string name="listening">Escuchando en este dispositivo</string><string name="waiting">Preparado</string>
+ <string name="dark_mode">Modo oscuro</string>
+ <string name="settings">Ajustes</string><string name="appearance">Apariencia</string><string name="instrument">Instrumento</string><string name="done">Listo</string>
+ <string name="notation">Notación musical</string>
+ <string name="pitch_waiting">Toca una nota</string>
+ <string name="no_note">—</string><string name="no_frequency">— Hz</string><string name="no_cents">— cents</string>
+ <string name="in_tune">AFINADO · dentro de ±5 cents</string>
+ <string name="pitch_low">SUBE EL TONO</string>
+ <string name="pitch_high">BAJA EL TONO</string>
+ <string name="signal_waiting">Esperando una señal estable</string><string name="signal_stable">Señal estable · %1$d%% de confianza</string><string name="signal_unavailable">No se pudo iniciar el micrófono</string><string name="audio_unavailable">El micrófono no está disponible</string>
+ <string name="calibration">Calibración A4: %1$d Hz</string>
+ <string name="license_action">Información y licencia</string><string name="license_title">Ethic Tuner · software libre</string><string name="license_message">Ethic Tuner se ofrece bajo GPL-3.0-or-later, sin garantía. Quien distribuya esta aplicación debe entregar una copia de la licencia y ofrecer también el código fuente correspondiente.</string>
+ <string name="privacy">No recopilamos ni compartimos datos personales.</string>
+</resources>
