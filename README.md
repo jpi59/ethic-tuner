@@ -21,6 +21,9 @@ files or send audio to a service. Appearance, instrument, notation and A4
 preferences are stored locally by Android. The app does not claim to control
 what the operating system or other applications may do with device data.
 
+The detailed [privacy statement](docs/PRIVACY.md) records the data flow,
+permission boundary and user controls for the published release.
+
 ## Build from source
 
 This repository includes its Gradle wrapper and is self-contained.
@@ -30,8 +33,10 @@ This repository includes its Gradle wrapper and is self-contained.
 ./gradlew :app:assembleRelease :app:lintVitalRelease
 ```
 
-The release APK is unsigned by design; F-Droid builds and signs its own
-artifacts from the published source and metadata. `local.properties` is
+Version `1.0.0` has a [production-signed APK and SHA-256 checksum on its GitHub
+release](https://github.com/jpi59/ethic-tuner/releases/tag/v1.0.0). F-Droid
+builds and signs its own artifacts from the published source and metadata, so a
+future F-Droid APK will use a different signature. `local.properties` is
 machine-specific and must not be committed.
 
 ## License and attribution
@@ -43,7 +48,7 @@ development without claiming copied code or assets.
 
 ## F-Droid status
 
-The project is prepared for a public source repository, but inclusion is not
+The source and signed direct release are public, but F-Droid inclusion is not
 automatic. A maintainer must review the source, build recipe, licensing,
-metadata and reproducibility in the F-Droid data repository. No submission or
+metadata and reproducibility in the F-Droid data repository. No F-Droid
 publication is claimed until that review occurs.
