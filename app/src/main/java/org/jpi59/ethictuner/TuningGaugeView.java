@@ -17,7 +17,7 @@ public final class TuningGaugeView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF arc = new RectF();
     private int cents;
-    private boolean hasPitch;
+    private PitchTracker.State state = PitchTracker.State.NONE;
     private boolean darkMode;
 
     public TuningGaugeView(Context context) { super(context); initialise(); }
@@ -28,14 +28,17 @@ public final class TuningGaugeView extends View {
         setContentDescription("Indicador de afinación. Esperando una nota.");
     }
 
-    public void setPitch(int cents, boolean hasPitch) {
+    public void setPitch(int cents, PitchTracker.State state) {
         int bounded = Math.max(-RANGE_CENTS, Math.min(RANGE_CENTS, cents));
-        if (this.cents == bounded && this.hasPitch == hasPitch) return;
+        if (this.cents == bounded && this.state == state) return;
         this.cents = bounded;
-        this.hasPitch = hasPitch;
-        String state = !hasPitch ? "Esperando una nota" : Math.abs(bounded) <= TOLERANCE_CENTS
+        this.state = state;
+        String description = state == PitchTracker.State.NONE ? "Esperando una nota"
+                : state == PitchTracker.State.HELD ? "Última lectura; señal débil"
+                : state == PitchTracker.State.AMBIGUOUS ? "Lectura ambigua; conservando la última nota"
+                : Math.abs(bounded) <= TOLERANCE_CENTS
                 ? "Afinado" : bounded < 0 ? "Bajo" : "Agudo";
-        setContentDescription("Indicador de afinación: " + state + ", " + Math.abs(bounded) + " cents.");
+        setContentDescription("Indicador de afinación: " + description + ", " + Math.abs(bounded) + " cents.");
         invalidate();
     }
 
@@ -83,18 +86,21 @@ public final class TuningGaugeView extends View {
         canvas.drawText("BAJO", centreX - radius * .72f, centreY - radius * .12f, paint);
         canvas.drawText("AGUDO", centreX + radius * .72f, centreY - radius * .12f, paint);
 
-        if (hasPitch) {
+        if (state != PitchTracker.State.NONE) {
             double angle = Math.toRadians(270 + cents * 1.4);
             float needle = radius - dp(27);
             float x = centreX + (float) Math.cos(angle) * needle;
             float y = centreY + (float) Math.sin(angle) * needle;
             paint.setStrokeWidth(dp(4));
             paint.setStrokeCap(Paint.Cap.ROUND);
-            paint.setColor(Math.abs(cents) <= TOLERANCE_CENTS
+            paint.setColor(state == PitchTracker.State.AMBIGUOUS ? Color.rgb(176, 106, 32)
+                    : Math.abs(cents) <= TOLERANCE_CENTS
                     ? accentColor() : darkMode ? Color.rgb(226, 232, 226) : Color.rgb(52, 55, 52));
+            if (state == PitchTracker.State.HELD) paint.setAlpha(125);
             canvas.drawLine(centreX, centreY, x, y, paint);
             paint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(centreX, centreY, dp(8), paint);
+            paint.setAlpha(255);
         } else {
             paint.setColor(darkMode ? Color.rgb(119, 126, 119) : Color.rgb(150, 153, 150));
             canvas.drawCircle(centreX, centreY, dp(6), paint);

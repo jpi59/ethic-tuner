@@ -60,7 +60,10 @@ public final class MainActivity extends Activity {
     private volatile long captureGeneration;
     private volatile AudioRecord activeRecorder;
     private final Object captureLock = new Object();
-    private long lastNoPitchUpdate;
+    private PitchTracker.State measurementState = PitchTracker.State.NONE;
+    private int displayedMidi = Integer.MIN_VALUE;
+    private int pendingMidi = Integer.MIN_VALUE;
+    private int pendingMidiFrames;
     private int a4 = 440;
 
     @Override public void onCreate(Bundle state) {
@@ -98,7 +101,7 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(root);
         setContentView(scroll);
         applyTheme();
-        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); gauge.setPitch(lastDeviation, hasPitch); if (hasPitch) updateSignal(lastConfidence); }
+        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); gauge.setPitch(lastDeviation, measurementState); if (hasPitch) updateSignal(lastConfidence); }
     }
     private LinearLayout column() { LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setGravity(Gravity.CENTER_HORIZONTAL); return layout; }
     private LinearLayout.LayoutParams weighted() { return new LinearLayout.LayoutParams(0, -2, 1f); }
@@ -126,13 +129,13 @@ public final class MainActivity extends Activity {
     }
     private void selectInstrument(int position) {
         selectedInstrument = position; noteTransposition = NOTE_TRANSPOSITIONS[position]; preferences.edit().putInt("instrument", position).apply(); updateInstrumentGuide();
-        if (lastHz > 0) showPitch(lastHz, lastConfidence);
+        if (lastHz > 0) showPitch(lastHz, lastConfidence, measurementState);
     }
     private void selectNotation(int position) {
         notation = position;
         preferences.edit().putInt("notation", position).apply();
         updateInstrumentGuide();
-        if (lastHz > 0) showPitch(lastHz, lastConfidence);
+        if (lastHz > 0) showPitch(lastHz, lastConfidence, measurementState);
     }
     private void showSettings() {
         acceptingInstrumentChanges = false;
@@ -242,7 +245,7 @@ public final class MainActivity extends Activity {
     private void stop() {
         running = false; ++captureGeneration; AudioRecord recorder = activeRecorder;
         if (recorder != null) try { recorder.stop(); } catch (IllegalStateException ignored) { }
-        hasPitch = false; lastConfidence = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (gauge != null) gauge.setPitch(0, false);
+        hasPitch = false; lastConfidence = 0; measurementState = PitchTracker.State.NONE; displayedMidi = Integer.MIN_VALUE; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (gauge != null) gauge.setPitch(0, PitchTracker.State.NONE);
         if (tuningState != null) { tuningState.setText(R.string.pitch_waiting); tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted)); signal.setVisibility(View.INVISIBLE); }
     }
     private boolean captureIsCurrent(long generation) { return running && generation == captureGeneration; }
@@ -254,17 +257,14 @@ public final class MainActivity extends Activity {
             if (minimum <= 0) { showAudioProblem(R.string.audio_unavailable); return; }
             AudioRecord recorder = openRecorder(rate, Math.max(4096, minimum * 2));
             if (recorder == null) { showAudioProblem(R.string.audio_unavailable); return; }
-            activeRecorder = recorder; PitchDetector detector = new PitchDetector(); short[] samples = new short[4096]; double smoothedHz = 0;
+            activeRecorder = recorder; PitchDetector detector = new PitchDetector(); PitchTracker tracker = new PitchTracker(); short[] samples = new short[4096];
             try {
                 recorder.startRecording();
                 while (captureIsCurrent(generation)) {
                     int count = recorder.read(samples, 0, samples.length, AudioRecord.READ_BLOCKING);
-                    if (count <= 0) { showNoPitch(); continue; }
-                    PitchDetector.Result result = detector.detect(samples, count, recorder.getSampleRate());
-                    if (result == null) { showNoPitch(); continue; }
-                    double centsFromPrevious = smoothedHz == 0 ? 0 : 1200 * Math.log(result.frequencyHz / smoothedHz) / Math.log(2);
-                    smoothedHz = smoothedHz == 0 || Math.abs(centsFromPrevious) > 150 ? result.frequencyHz : .35 * result.frequencyHz + .65 * smoothedHz;
-                    showPitch(smoothedHz, result.confidence);
+                    PitchDetector.Result result = count <= 0 ? null : detector.detect(samples, count, recorder.getSampleRate());
+                    PitchTracker.Frame frame = tracker.update(result, android.os.SystemClock.elapsedRealtime());
+                    showMeasurement(frame);
                 }
             } catch (IllegalStateException | SecurityException error) { if (captureIsCurrent(generation)) showAudioProblem(R.string.audio_unavailable); }
             finally {
@@ -284,11 +284,83 @@ public final class MainActivity extends Activity {
         return null;
     }
     private void showAudioProblem(int message) { runOnUiThread(() -> { if (running) { stop(); status.setText(message); signal.setText(R.string.signal_unavailable); } }); }
-    private void showNoPitch() {
-        long now = System.currentTimeMillis(); if (now - lastNoPitchUpdate < 500) return; lastNoPitchUpdate = now;
-        runOnUiThread(() -> { if (running) { hasPitch = false; lastHz = 0; note.setText(R.string.no_note); frequency.setText(R.string.no_frequency); cents.setText(R.string.no_cents); gauge.setPitch(0, false); tuningState.setText(R.string.pitch_waiting); signal.setVisibility(View.INVISIBLE); } });
+    private void showMeasurement(PitchTracker.Frame frame) {
+        if (frame.state != PitchTracker.State.NONE) {
+            showPitch(frame.frequencyHz, frame.confidence, frame.state);
+            return;
+        }
+        displayedMidi = Integer.MIN_VALUE;
+        pendingMidi = Integer.MIN_VALUE;
+        pendingMidiFrames = 0;
+        runOnUiThread(() -> {
+            if (!running) return;
+            hasPitch = false;
+            measurementState = PitchTracker.State.NONE;
+            lastHz = 0;
+            note.setText(R.string.no_note);
+            frequency.setText(R.string.no_frequency);
+            cents.setText(R.string.no_cents);
+            gauge.setPitch(0, PitchTracker.State.NONE);
+            tuningState.setText(R.string.pitch_waiting);
+            tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
+            signal.setVisibility(View.INVISIBLE);
+        });
     }
-    private void showPitch(double hz, double confidence) { double midi = 69 + 12 * Math.log(hz / a4) / Math.log(2); int nearest = (int)Math.round(midi); int deviation = (int)Math.round(100 * (midi-nearest)); String[] names = notation == 1 ? LATIN_NOTES : ENGLISH_NOTES; int displayedNote = nearest + noteTransposition; String name=names[(displayedNote%12+12)%12]+(displayedNote/12-1); boolean pitchInTune=Math.abs(deviation)<=5; runOnUiThread(() -> { hasPitch=true; inTune=pitchInTune; lastHz=hz; lastDeviation=deviation; lastConfidence=confidence; note.setText(name); frequency.setText(String.format(java.util.Locale.US,"%.1f Hz",hz)); cents.setText(String.format(java.util.Locale.US,"%+d cents",deviation)); gauge.setPitch(deviation, true); tuningState.setText(inTune ? R.string.in_tune : deviation < 0 ? R.string.pitch_low : R.string.pitch_high); tuningState.setTextColor(inTune ? actionColor() : darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink)); updateSignal(confidence); }); }
+
+    private int displayedMidi(double midi, PitchTracker.State state) {
+        int proposed = (int) Math.round(midi);
+        if (displayedMidi == Integer.MIN_VALUE) {
+            displayedMidi = proposed;
+            return displayedMidi;
+        }
+        if (state != PitchTracker.State.STABLE || proposed == displayedMidi) {
+            if (proposed == displayedMidi) { pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; }
+            return displayedMidi;
+        }
+        double centsFromDisplayed = 100 * (midi - displayedMidi);
+        boolean pastHysteresis = proposed > displayedMidi ? centsFromDisplayed >= 60 : centsFromDisplayed <= -60;
+        if (!pastHysteresis) { pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; return displayedMidi; }
+        if (pendingMidi == proposed) pendingMidiFrames++; else { pendingMidi = proposed; pendingMidiFrames = 1; }
+        if (pendingMidiFrames >= 3) { displayedMidi = proposed; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; }
+        return displayedMidi;
+    }
+
+    private void showPitch(double hz, double confidence, PitchTracker.State state) {
+        double midi = 69 + 12 * Math.log(hz / a4) / Math.log(2);
+        int stableMidi = displayedMidi(midi, state);
+        int deviation = (int) Math.round(100 * (midi - stableMidi));
+        String[] names = notation == 1 ? LATIN_NOTES : ENGLISH_NOTES;
+        int displayedNote = stableMidi + noteTransposition;
+        String name = names[(displayedNote % 12 + 12) % 12] + (displayedNote / 12 - 1);
+        boolean pitchInTune = state == PitchTracker.State.STABLE && Math.abs(deviation) <= 5;
+        runOnUiThread(() -> {
+            if (!running) return;
+            hasPitch = true;
+            measurementState = state;
+            inTune = pitchInTune;
+            lastHz = hz;
+            lastDeviation = deviation;
+            lastConfidence = confidence;
+            note.setText(name);
+            frequency.setText(String.format(java.util.Locale.US, "%.1f Hz", hz));
+            cents.setText(String.format(java.util.Locale.US, "%+d cents", deviation));
+            gauge.setPitch(deviation, state);
+            if (state == PitchTracker.State.HELD) {
+                tuningState.setText(R.string.pitch_held);
+                tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
+                signal.setText(R.string.signal_held);
+            } else if (state == PitchTracker.State.AMBIGUOUS) {
+                tuningState.setText(R.string.pitch_ambiguous);
+                tuningState.setTextColor(darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
+                signal.setText(R.string.signal_ambiguous);
+            } else {
+                tuningState.setText(inTune ? R.string.in_tune : deviation < 0 ? R.string.pitch_low : R.string.pitch_high);
+                tuningState.setTextColor(inTune ? actionColor() : darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
+                updateSignal(confidence);
+            }
+            signal.setVisibility(View.VISIBLE);
+        });
+    }
     private void updateSignal(double confidence) { signal.setVisibility(confidence > 0 ? View.VISIBLE : View.INVISIBLE); if (confidence > 0) signal.setText(getString(R.string.signal_stable, Math.round(confidence * 100))); }
     @Override public void onConfigurationChanged(Configuration configuration) { super.onConfigurationChanged(configuration); buildUi(); }
     @Override protected void onPause() { stop(); super.onPause(); }
