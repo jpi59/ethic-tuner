@@ -356,7 +356,24 @@ public final class MainActivity extends Activity {
 
     private void showPitch(double hz, double confidence, PitchTracker.State state) {
         double midi = 69 + 12 * Math.log(hz / a4) / Math.log(2);
+        int proposedMidi = (int) Math.round(midi);
         int stableMidi = displayedMidi(midi, state);
+        // Do not combine a previous note name with a new frequency while the note latch is
+        // collecting evidence. The prior display remains truthful and visibly ambiguous.
+        if (state == PitchTracker.State.STABLE && stableMidi != proposedMidi && lastHz > 0) {
+            runOnUiThread(() -> {
+                if (!running) return;
+                hasPitch = true;
+                measurementState = PitchTracker.State.AMBIGUOUS;
+                inTune = false;
+                precisionDial.setReading(lastNoteName, lastHz, lastDeviation, PitchTracker.State.AMBIGUOUS);
+                tuningState.setVisibility(View.VISIBLE);
+                tuningState.setText(R.string.pitch_ambiguous);
+                tuningState.setTextColor(darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
+                signal.setVisibility(View.INVISIBLE);
+            });
+            return;
+        }
         int deviation = (int) Math.round(100 * (midi - stableMidi));
         String[] names = notation == 1 ? LATIN_NOTES : ENGLISH_NOTES;
         int displayedNote = stableMidi + noteTransposition;
