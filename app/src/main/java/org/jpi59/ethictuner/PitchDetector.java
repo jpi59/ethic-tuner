@@ -10,7 +10,8 @@ public final class PitchDetector {
     public static final double MAX_FREQUENCY_HZ = 3500.0;
     private static final double MIN_RMS = 0.006;
     private static final double YIN_THRESHOLD = 0.15;
-    private static final double MIN_CONFIDENCE = 0.75;
+    private static final double MIN_CONFIDENCE = 0.80;
+    private static final double LOW_FREQUENCY_CONFIDENCE = 0.85;
     private double[] difference = new double[0];
     private double[] cmnd = new double[0];
 
@@ -58,7 +59,9 @@ public final class PitchDetector {
             }
         }
         double confidence = 1.0 - cmnd[candidate];
-        if (confidence < MIN_CONFIDENCE) return null;
+        // Low-frequency room rumble is a common false positive. It needs stronger periodic
+        // evidence than the rest of the musical range before the UI may show a note.
+        if (confidence < (sampleRate / (double) candidate < 45 ? LOW_FREQUENCY_CONFIDENCE : MIN_CONFIDENCE)) return null;
 
         double refinedLag = candidate;
         if (candidate > minLag && candidate < maxLag) {

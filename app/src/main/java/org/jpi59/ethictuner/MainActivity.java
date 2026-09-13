@@ -14,6 +14,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.media.audiofx.NoiseSuppressor;
 import android.os.Bundle;
 import android.os.Build;
 import android.view.Gravity;
@@ -51,15 +52,18 @@ public final class MainActivity extends Activity {
     private ArrayAdapter<String> instrumentAdapter, notationAdapter;
     private AlertDialog settingsDialog;
     private LinearLayout settingsPanel;
-    private TextView instrumentLabel, notationLabel;
+    private TextView instrumentLabel, notationLabel, noiseReductionHint;
+    private Switch noiseReductionSwitch;
     private SharedPreferences preferences;
     private boolean darkMode, hasPitch, inTune, acceptingNotationChanges, acceptingInstrumentChanges;
+    private volatile boolean noiseReduction, noiseReductionEnabled;
     private int lastDeviation;
     private int selectedInstrument, noteTransposition, notation;
     private double lastHz, lastConfidence;
     private volatile boolean running;
     private volatile long captureGeneration;
     private volatile AudioRecord activeRecorder;
+    private volatile NoiseSuppressor activeNoiseSuppressor;
     private final Object captureLock = new Object();
     private PitchTracker.State measurementState = PitchTracker.State.NONE;
     private int displayedMidi = Integer.MIN_VALUE;
@@ -71,7 +75,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         preferences = getSharedPreferences("appearance", MODE_PRIVATE);
-        darkMode = preferences.getBoolean("dark_mode", false); a4 = preferences.getInt("a4", 440); selectedInstrument = Math.max(0, Math.min(INSTRUMENTS.length - 1, preferences.getInt("instrument", 0))); noteTransposition = NOTE_TRANSPOSITIONS[selectedInstrument]; notation = Math.max(0, Math.min(NOTATIONS.length - 1, preferences.getInt("notation", 0)));
+        darkMode = preferences.getBoolean("dark_mode", false); noiseReduction = preferences.getBoolean("noise_reduction", true); a4 = preferences.getInt("a4", 440); selectedInstrument = Math.max(0, Math.min(INSTRUMENTS.length - 1, preferences.getInt("instrument", 0))); noteTransposition = NOTE_TRANSPOSITIONS[selectedInstrument]; notation = Math.max(0, Math.min(NOTATIONS.length - 1, preferences.getInt("notation", 0)));
         buildUi();
     }
     private void buildUi() {
@@ -82,13 +86,14 @@ public final class MainActivity extends Activity {
         tunerPanel = column();
         LinearLayout controls = column();
         title = text("Ethic Tuner", landscape ? 22 : 25); medium(title); header.addView(title);
-        settings = new Button(this); settings.setText(R.string.settings); settings.setTextSize(15); settings.setAllCaps(false); medium(settings); settings.setGravity(Gravity.CENTER); settings.setPadding(dp(14), dp(4), dp(14), dp(4)); settings.setMinWidth(0); settings.setMinHeight(dp(40)); settings.setContentDescription(getString(R.string.settings)); settings.setOnClickListener(v -> showSettings());
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(-2, -2); settingsParams.setMargins(0, dp(2), 0, dp(2)); header.addView(settings, settingsParams);
-        status = text(getString(R.string.waiting), 15);
-        darkSwitch = new Switch(this); darkSwitch.setText(R.string.dark_mode); darkSwitch.setTextSize(16); medium(darkSwitch); darkSwitch.setPadding(dp(7), 0, 0, 0); darkSwitch.setGravity(Gravity.CENTER_VERTICAL); darkSwitch.setContentDescription(getString(R.string.dark_mode)); darkSwitch.setChecked(darkMode); darkSwitch.setOnCheckedChangeListener((button, checked) -> { darkMode = checked; preferences.edit().putBoolean("dark_mode", checked).apply(); applyTheme(); }); header.addView(darkSwitch, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout headerControls = new LinearLayout(this); headerControls.setOrientation(LinearLayout.HORIZONTAL); headerControls.setGravity(Gravity.CENTER_VERTICAL);
+        darkSwitch = new Switch(this); darkSwitch.setText(R.string.dark_mode); darkSwitch.setTextSize(16); medium(darkSwitch); darkSwitch.setPadding(dp(7), 0, 0, 0); darkSwitch.setGravity(Gravity.CENTER_VERTICAL); darkSwitch.setContentDescription(getString(R.string.dark_mode)); darkSwitch.setChecked(darkMode); darkSwitch.setOnCheckedChangeListener((button, checked) -> { darkMode = checked; preferences.edit().putBoolean("dark_mode", checked).apply(); applyTheme(); }); headerControls.addView(darkSwitch, new LinearLayout.LayoutParams(0, -2, 1f));
+        settings = new Button(this); settings.setText(R.string.settings); settings.setTextSize(15); settings.setAllCaps(false); medium(settings); settings.setGravity(Gravity.CENTER); settings.setPadding(dp(14), dp(4), dp(14), dp(4)); settings.setMinWidth(0); settings.setMinHeight(dp(40)); settings.setContentDescription(getString(R.string.settings)); settings.setOnClickListener(v -> showSettings()); headerControls.addView(settings, new LinearLayout.LayoutParams(-2, -2));
+        header.addView(headerControls, new LinearLayout.LayoutParams(-1, -2));
+        status = text(getString(R.string.waiting), 13); status.setVisibility(View.GONE); header.addView(status, new LinearLayout.LayoutParams(-1, -2));
         tunerPanel.setPadding(0, dp(landscape ? 6 : 8), 0, dp(landscape ? 4 : 6));
         precisionDial = new PrecisionDialView(this); tunerPanel.addView(precisionDial, new LinearLayout.LayoutParams(-1, dp(landscape ? 270 : 350)));
-        tuningState = text(getString(R.string.pitch_waiting), 18); medium(tuningState); tunerPanel.addView(tuningState);
+        tuningState = text(getString(R.string.pitch_waiting), 18); medium(tuningState); tuningState.setVisibility(View.INVISIBLE); tunerPanel.addView(tuningState);
         signal = text(getString(R.string.signal_waiting), 14); signal.setVisibility(hasPitch ? View.VISIBLE : View.INVISIBLE); tunerPanel.addView(signal);
         toggle = new Button(this); toggle.setText(R.string.start); toggle.setTextSize(18); toggle.setAllCaps(false); medium(toggle); toggle.setOnClickListener(v -> requestOrToggle());
         LinearLayout.LayoutParams primaryAction = new LinearLayout.LayoutParams(-1, dp(52)); primaryAction.setMargins(0, dp(8), 0, dp(2)); controls.addView(toggle, primaryAction);
@@ -101,7 +106,7 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(root);
         setContentView(scroll);
         applyTheme();
-        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); precisionDial.setReading(lastNoteName, lastHz, lastDeviation, measurementState); if (hasPitch) updateSignal(lastConfidence); }
+        if (running) { showListeningStatus(); toggle.setText(R.string.stop); precisionDial.setReading(lastNoteName, lastHz, lastDeviation, measurementState); if (hasPitch) updateSignal(lastConfidence); }
     }
     private LinearLayout column() { LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setGravity(Gravity.CENTER_HORIZONTAL); return layout; }
     private LinearLayout.LayoutParams weighted() { return new LinearLayout.LayoutParams(0, -2, 1f); }
@@ -149,6 +154,8 @@ public final class MainActivity extends Activity {
         notationSpinner = new Spinner(this); notationAdapter = themedAdapter(NOTATIONS); notationSpinner.setAdapter(notationAdapter); notationSpinner.setContentDescription(getString(R.string.notation)); panel.addView(notationSpinner, new LinearLayout.LayoutParams(-1, -2));
         calibration = text(getString(R.string.calibration, a4), 17); numeric(calibration); calibration.setPadding(0, dp(16), 0, 0); panel.addView(calibration);
         SeekBar slider = new SeekBar(this); slider.setMax(32); slider.setProgress(Math.max(0, Math.min(32, a4 - 424))); slider.setContentDescription(getString(R.string.calibration, a4)); panel.addView(slider, new LinearLayout.LayoutParams(-1, -2));
+        noiseReductionSwitch = new Switch(this); noiseReductionSwitch.setText(R.string.noise_reduction); noiseReductionSwitch.setTextSize(16); medium(noiseReductionSwitch); noiseReductionSwitch.setPadding(0, dp(12), 0, 0); noiseReductionSwitch.setContentDescription(getString(R.string.noise_reduction)); noiseReductionSwitch.setChecked(noiseReduction); panel.addView(noiseReductionSwitch, new LinearLayout.LayoutParams(-1, -2));
+        noiseReductionHint = text(getString(R.string.noise_reduction_hint), 13); noiseReductionHint.setSingleLine(false); noiseReductionHint.setPadding(0, 0, 0, dp(8)); panel.addView(noiseReductionHint, new LinearLayout.LayoutParams(-1, -2));
         AlertDialog dialog = new AlertDialog.Builder(this).setView(panel).setPositiveButton(R.string.done, null).create();
         instruments.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             public void onNothingSelected(AdapterView<?> parent) { }
@@ -167,9 +174,14 @@ public final class MainActivity extends Activity {
             public void onStartTrackingTouch(SeekBar bar) { }
             public void onStopTrackingTouch(SeekBar bar) { }
         });
+        noiseReductionSwitch.setOnCheckedChangeListener((button, checked) -> {
+            noiseReduction = checked;
+            preferences.edit().putBoolean("noise_reduction", checked).apply();
+            applyNoiseReductionPreference();
+        });
         dialog.show();
         settingsDialog = dialog; settingsPanel = panel; this.instrumentLabel = instrumentLabel; this.notationLabel = notationLabel;
-        dialog.setOnDismissListener(ignored -> { settingsDialog = null; settingsPanel = null; instrumentGuide = null; this.notationLabel = null; });
+        dialog.setOnDismissListener(ignored -> { settingsDialog = null; settingsPanel = null; instrumentGuide = null; this.notationLabel = null; noiseReductionSwitch = null; noiseReductionHint = null; });
         styleSettingsPanel();
     }
     private void styleSettingsPanel() {
@@ -177,11 +189,8 @@ public final class MainActivity extends Activity {
         int ink = darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink);
         int muted = darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted);
         int surface = darkMode ? Color.rgb(30, 35, 32) : Color.rgb(255, 255, 255);
-        settingsPanel.setBackgroundColor(surface); instrumentLabel.setTextColor(muted); instrumentGuide.setTextColor(muted); notationLabel.setTextColor(muted); calibration.setTextColor(ink);
+        settingsPanel.setBackgroundColor(surface); instrumentLabel.setTextColor(muted); instrumentGuide.setTextColor(muted); notationLabel.setTextColor(muted); calibration.setTextColor(ink); if (noiseReductionSwitch != null) noiseReductionSwitch.setTextColor(ink); if (noiseReductionHint != null) noiseReductionHint.setTextColor(muted);
         instruments.getBackground().setTint(ink); instruments.setPopupBackgroundDrawable(new ColorDrawable(surface)); notationSpinner.getBackground().setTint(ink); notationSpinner.setPopupBackgroundDrawable(new ColorDrawable(surface));
-        int titleId = getResources().getIdentifier("alertTitle", "id", "android");
-        TextView dialogTitle = titleId == 0 ? null : settingsDialog.findViewById(titleId);
-        if (dialogTitle != null) dialogTitle.setTextColor(ink);
         Button done = settingsDialog.getButton(AlertDialog.BUTTON_POSITIVE);
         if (done != null) { done.setTextColor(actionColor()); done.setTextSize(16); done.setAllCaps(false); medium(done); }
         if (settingsDialog.getWindow() != null) settingsDialog.getWindow().setBackgroundDrawable(new ColorDrawable(surface));
@@ -217,7 +226,6 @@ public final class MainActivity extends Activity {
         v.setTextSize(size);
         v.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
         v.setGravity(Gravity.CENTER);
-        v.setSingleLine(true);
         v.setIncludeFontPadding(false);
         v.setPadding(0, dp(5), 0, dp(5));
         return v;
@@ -235,17 +243,17 @@ public final class MainActivity extends Activity {
                 .setPositiveButton(R.string.continue_action, (dialog, which) -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MICROPHONE)).show();
     }
     @Override public void onRequestPermissionsResult(int r, String[] p, int[] g) { super.onRequestPermissionsResult(r, p, g); if (r == REQUEST_MICROPHONE && g.length > 0 && g[0] == PackageManager.PERMISSION_GRANTED) start(); else showPermissionNeeded(); }
-    private void showPermissionNeeded() { status.setText(R.string.permission_needed); tuningState.setText(R.string.pitch_waiting); }
+    private void showPermissionNeeded() { status.setText(R.string.permission_needed); status.setVisibility(View.VISIBLE); tuningState.setVisibility(View.INVISIBLE); }
     private void start() {
         if (running) return;
-        running = true; long generation = ++captureGeneration; toggle.setText(R.string.stop); status.setText(R.string.listening); signal.setVisibility(View.INVISIBLE);
+        running = true; noiseReductionEnabled = false; long generation = ++captureGeneration; toggle.setText(R.string.stop); showListeningStatus(); tuningState.setVisibility(View.INVISIBLE); signal.setVisibility(View.INVISIBLE);
         new Thread(() -> listen(generation), "EthicTunerAudio").start();
     }
     private void stop() {
         running = false; ++captureGeneration; AudioRecord recorder = activeRecorder;
         if (recorder != null) try { recorder.stop(); } catch (IllegalStateException ignored) { }
-        hasPitch = false; lastConfidence = 0; measurementState = PitchTracker.State.NONE; lastNoteName = "—"; displayedMidi = Integer.MIN_VALUE; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (precisionDial != null) precisionDial.setReading(lastNoteName, 0, 0, PitchTracker.State.NONE);
-        if (tuningState != null) { tuningState.setText(R.string.pitch_waiting); tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted)); signal.setVisibility(View.INVISIBLE); }
+        noiseReductionEnabled = false; hasPitch = false; lastConfidence = 0; measurementState = PitchTracker.State.NONE; lastNoteName = "—"; displayedMidi = Integer.MIN_VALUE; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); status.setVisibility(View.GONE); if (precisionDial != null) precisionDial.setReading(lastNoteName, 0, 0, PitchTracker.State.NONE);
+        if (tuningState != null) { tuningState.setVisibility(View.INVISIBLE); signal.setVisibility(View.INVISIBLE); }
     }
     private boolean captureIsCurrent(long generation) { return running && generation == captureGeneration; }
     @SuppressLint("MissingPermission") private void listen(long generation) {
@@ -256,7 +264,7 @@ public final class MainActivity extends Activity {
             if (minimum <= 0) { showAudioProblem(R.string.audio_unavailable); return; }
             AudioRecord recorder = openRecorder(rate, Math.max(4096, minimum * 2));
             if (recorder == null) { showAudioProblem(R.string.audio_unavailable); return; }
-            activeRecorder = recorder; PitchDetector detector = new PitchDetector(); PitchTracker tracker = new PitchTracker(); short[] samples = new short[4096];
+            activeRecorder = recorder; NoiseSuppressor suppressor = createNoiseSuppressor(recorder); activeNoiseSuppressor = suppressor; runOnUiThread(this::showListeningStatus); PitchDetector detector = new PitchDetector(); PitchTracker tracker = new PitchTracker(); short[] samples = new short[4096];
             try {
                 recorder.startRecording();
                 while (captureIsCurrent(generation)) {
@@ -268,6 +276,9 @@ public final class MainActivity extends Activity {
             } catch (IllegalStateException | SecurityException error) { if (captureIsCurrent(generation)) showAudioProblem(R.string.audio_unavailable); }
             finally {
                 try { recorder.stop(); } catch (IllegalStateException ignored) { }
+                if (activeNoiseSuppressor == suppressor) activeNoiseSuppressor = null;
+                if (suppressor != null) suppressor.release();
+                noiseReductionEnabled = false;
                 recorder.release(); if (activeRecorder == recorder) activeRecorder = null;
             }
         }
@@ -282,7 +293,29 @@ public final class MainActivity extends Activity {
         }
         return null;
     }
-    private void showAudioProblem(int message) { runOnUiThread(() -> { if (running) { stop(); status.setText(message); signal.setText(R.string.signal_unavailable); } }); }
+    private NoiseSuppressor createNoiseSuppressor(AudioRecord recorder) {
+        if (!noiseReduction || !NoiseSuppressor.isAvailable()) { noiseReductionEnabled = false; return null; }
+        try {
+            NoiseSuppressor suppressor = NoiseSuppressor.create(recorder.getAudioSessionId());
+            if (suppressor != null) {
+                suppressor.setEnabled(true);
+                noiseReductionEnabled = suppressor.getEnabled();
+            }
+            return suppressor;
+        } catch (RuntimeException ignored) {
+            noiseReductionEnabled = false;
+            return null;
+        }
+    }
+    private void applyNoiseReductionPreference() {
+        NoiseSuppressor suppressor = activeNoiseSuppressor;
+        boolean enabled = false;
+        if (suppressor != null) try { suppressor.setEnabled(noiseReduction); enabled = suppressor.getEnabled(); } catch (RuntimeException ignored) { }
+        noiseReductionEnabled = enabled;
+        showListeningStatus();
+    }
+    private void showListeningStatus() { if (running && status != null) { status.setText(noiseReductionEnabled ? R.string.listening_filtered : R.string.listening); status.setVisibility(noiseReductionEnabled ? View.VISIBLE : View.GONE); } }
+    private void showAudioProblem(int message) { runOnUiThread(() -> { if (running) { stop(); status.setText(message); status.setVisibility(View.VISIBLE); signal.setText(R.string.signal_unavailable); } }); }
     private void showMeasurement(PitchTracker.Frame frame) {
         if (frame.state != PitchTracker.State.NONE) {
             showPitch(frame.frequencyHz, frame.confidence, frame.state);
@@ -298,8 +331,7 @@ public final class MainActivity extends Activity {
             lastHz = 0;
             lastNoteName = "—";
             precisionDial.setReading(lastNoteName, 0, 0, PitchTracker.State.NONE);
-            tuningState.setText(R.string.pitch_waiting);
-            tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
+            tuningState.setVisibility(View.INVISIBLE);
             signal.setVisibility(View.INVISIBLE);
         });
     }
@@ -340,20 +372,20 @@ public final class MainActivity extends Activity {
             lastConfidence = confidence;
             lastNoteName = name;
             precisionDial.setReading(name, hz, deviation, state);
+            tuningState.setVisibility(View.VISIBLE);
             if (state == PitchTracker.State.HELD) {
                 tuningState.setText(R.string.pitch_held);
                 tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
-                signal.setText(R.string.signal_held);
+                signal.setVisibility(View.INVISIBLE);
             } else if (state == PitchTracker.State.AMBIGUOUS) {
                 tuningState.setText(R.string.pitch_ambiguous);
                 tuningState.setTextColor(darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
-                signal.setText(R.string.signal_ambiguous);
+                signal.setVisibility(View.INVISIBLE);
             } else {
                 tuningState.setText(inTune ? R.string.in_tune : deviation < 0 ? R.string.pitch_low : R.string.pitch_high);
                 tuningState.setTextColor(inTune ? actionColor() : darkMode ? Color.rgb(226, 232, 226) : getColor(R.color.ink));
                 updateSignal(confidence);
             }
-            signal.setVisibility(View.VISIBLE);
         });
     }
     private void updateSignal(double confidence) { signal.setVisibility(confidence > 0 ? View.VISIBLE : View.INVISIBLE); if (confidence > 0) signal.setText(getString(R.string.signal_stable, Math.round(confidence * 100))); }

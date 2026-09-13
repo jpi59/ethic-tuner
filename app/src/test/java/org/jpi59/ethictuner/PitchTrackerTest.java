@@ -12,7 +12,8 @@ public final class PitchTrackerTest {
 
     private static void acquire(PitchTracker tracker, double hz, long startMillis) {
         assertEquals(PitchTracker.State.NONE, tracker.update(result(hz), startMillis).state);
-        assertEquals(PitchTracker.State.STABLE, tracker.update(result(hz), startMillis + 100).state);
+        assertEquals(PitchTracker.State.NONE, tracker.update(result(hz), startMillis + 100).state);
+        assertEquals(PitchTracker.State.STABLE, tracker.update(result(hz), startMillis + 200).state);
     }
 
     @Test public void holdsTheLastHonestReadingAcrossAShortDropout() {
@@ -21,7 +22,7 @@ public final class PitchTrackerTest {
         PitchTracker.Frame held = tracker.update(null, 1_500);
         assertEquals(PitchTracker.State.HELD, held.state);
         assertEquals(440, held.frequencyHz, .01);
-        assertEquals(PitchTracker.State.NONE, tracker.update(null, 1_700).state);
+        assertEquals(PitchTracker.State.NONE, tracker.update(null, 1_800).state);
     }
 
     @Test public void requiresRepeatedEvidenceBeforeAcceptingALargeJump() {
@@ -52,6 +53,6 @@ public final class PitchTrackerTest {
         tracker.update(result(880), 1_400);
         tracker.update(result(1_000), 1_500);
         tracker.update(result(880), 1_600);
-        assertEquals(PitchTracker.State.NONE, tracker.update(result(1_000), 1_700).state);
+        assertEquals(PitchTracker.State.NONE, tracker.update(result(1_000), 1_800).state);
     }
 }

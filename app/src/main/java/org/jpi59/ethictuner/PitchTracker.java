@@ -13,7 +13,7 @@ public final class PitchTracker {
 
     private static final long HOLD_MILLIS = 550;
     private static final int HISTORY_SIZE = 5;
-    private static final int REQUIRED_ACQUISITION_FRAMES = 2;
+    private static final int REQUIRED_ACQUISITION_FRAMES = 3;
     private static final int REQUIRED_NEW_PITCH_FRAMES = 3;
     private static final double JUMP_CENTS = 150.0;
     private static final double PENDING_SPREAD_CENTS = 35.0;

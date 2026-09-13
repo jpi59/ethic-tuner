@@ -10,6 +10,7 @@ without recording or transmitting audio.
   piano, recorder, transverse flute, clarinet and saxophones.
 - English or Latin note names.
 - A4 calibration from 424–456 Hz.
+- Optional device-provided noise reduction, clearly labelled and controllable in settings when the device supports it.
 - Light and dark themes, portrait and landscape layouts.
 - No network permission, accounts, analytics, advertising or scan history.
 
@@ -17,9 +18,12 @@ without recording or transmitting audio.
 
 The only runtime permission is `RECORD_AUDIO`, requested when tuning starts.
 Samples are analysed in memory and discarded; the app does not create audio
-files or send audio to a service. Appearance, instrument, notation and A4
-preferences are stored locally by Android. The app does not claim to control
-what the operating system or other applications may do with device data.
+files or send audio to a service. When enabled and available, the optional
+noise-reduction effect is supplied by Android on the same local audio session;
+it is not a cloud or third-party audio service and its results vary by device.
+Appearance, instrument, notation, A4 and the noise-reduction preference are
+stored locally by Android. The app does not claim to control what the operating
+system or other applications may do with device data.
 
 The detailed [privacy statement](docs/PRIVACY.md) records the data flow,
 permission boundary and user controls for the published release.
