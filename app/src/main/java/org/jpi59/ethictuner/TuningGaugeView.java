@@ -51,19 +51,27 @@ public final class TuningGaugeView extends View {
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         float width = getWidth();
+        RectF panel = new RectF(dp(3), dp(2), width - dp(3), getHeight() - dp(2));
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(darkMode ? Color.rgb(17, 24, 21) : Color.rgb(248, 251, 248));
+        canvas.drawRoundRect(panel, dp(20), dp(20), paint);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(dp(1));
+        paint.setColor(darkMode ? Color.rgb(57, 83, 68) : Color.rgb(202, 217, 207));
+        canvas.drawRoundRect(panel, dp(20), dp(20), paint);
         float centreX = width / 2f;
-        float centreY = getHeight() - dp(20);
-        float radius = Math.min(width * .44f, getHeight() * .86f);
-        float stroke = dp(8);
+        float centreY = getHeight() - dp(18);
+        float radius = Math.min(width * .42f, getHeight() * .79f);
+        float stroke = dp(9);
         arc.set(centreX - radius, centreY - radius, centreX + radius, centreY + radius);
 
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(stroke);
         paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setColor(darkMode ? Color.rgb(72, 78, 73) : Color.rgb(207, 211, 207));
+        paint.setColor(darkMode ? Color.rgb(58, 73, 64) : Color.rgb(211, 222, 214));
         canvas.drawArc(arc, 200, 140, false, paint);
-        paint.setColor(accentColor());
-        canvas.drawArc(arc, 263, 14, false, paint);
+        paint.setColor(darkMode ? Color.rgb(47, 126, 96) : Color.rgb(68, 145, 111));
+        canvas.drawArc(arc, 260, 20, false, paint);
 
         paint.setStrokeCap(Paint.Cap.BUTT);
         paint.setStrokeWidth(dp(2));
@@ -85,6 +93,9 @@ public final class TuningGaugeView extends View {
         paint.setColor(darkMode ? Color.rgb(177, 184, 177) : Color.rgb(95, 98, 95));
         canvas.drawText("BAJO", centreX - radius * .72f, centreY - radius * .12f, paint);
         canvas.drawText("AGUDO", centreX + radius * .72f, centreY - radius * .12f, paint);
+        paint.setTextSize(sp(11));
+        paint.setColor(darkMode ? Color.rgb(125, 151, 135) : Color.rgb(86, 111, 96));
+        canvas.drawText("PRECISIÓN · ±5 cents", centreX, centreY - radius * .58f, paint);
 
         if (state != PitchTracker.State.NONE) {
             double angle = Math.toRadians(270 + cents * 1.4);

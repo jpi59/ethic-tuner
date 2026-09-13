@@ -13,6 +13,7 @@ public final class PitchTracker {
 
     private static final long HOLD_MILLIS = 550;
     private static final int HISTORY_SIZE = 5;
+    private static final int REQUIRED_ACQUISITION_FRAMES = 2;
     private static final int REQUIRED_NEW_PITCH_FRAMES = 3;
     private static final double JUMP_CENTS = 150.0;
     private static final double PENDING_SPREAD_CENTS = 35.0;
@@ -27,9 +28,14 @@ public final class PitchTracker {
     private long lastAcceptedAt = Long.MIN_VALUE;
     private double pendingHz;
     private int pendingCount;
+    private double acquisitionHz;
+    private int acquisitionCount;
 
     public Frame update(PitchDetector.Result result, long nowMillis) {
         if (result == null) return missing(nowMillis);
+        if (trackedHz == 0 && !acquire(result.frequencyHz)) {
+            return new Frame(State.NONE, 0, 0, 0, 0);
+        }
         if (trackedHz > 0 && Math.abs(centsBetween(result.frequencyHz, trackedHz)) > JUMP_CENTS) {
             if (pendingCount == 0 || Math.abs(centsBetween(result.frequencyHz, pendingHz)) > PENDING_SPREAD_CENTS) {
                 pendingHz = result.frequencyHz;
@@ -59,6 +65,19 @@ public final class PitchTracker {
         return new Frame(State.STABLE, trackedHz, lastConfidence, lastRms, 0);
     }
 
+    private boolean acquire(double frequencyHz) {
+        if (acquisitionCount == 0 || Math.abs(centsBetween(frequencyHz, acquisitionHz)) > PENDING_SPREAD_CENTS) {
+            acquisitionHz = frequencyHz;
+            acquisitionCount = 1;
+            return false;
+        }
+        acquisitionHz = (acquisitionHz * acquisitionCount + frequencyHz) / (acquisitionCount + 1);
+        acquisitionCount++;
+        if (acquisitionCount < REQUIRED_ACQUISITION_FRAMES) return false;
+        acquisitionCount = 0;
+        return true;
+    }
+
     public void reset() {
         clearHistory();
         trackedHz = 0;
@@ -67,9 +86,15 @@ public final class PitchTracker {
         lastAcceptedAt = Long.MIN_VALUE;
         pendingCount = 0;
         pendingHz = 0;
+        acquisitionCount = 0;
+        acquisitionHz = 0;
     }
 
     private Frame missing(long nowMillis) {
+        if (trackedHz == 0) {
+            acquisitionCount = 0;
+            acquisitionHz = 0;
+        }
         if (trackedHz > 0 && age(nowMillis) <= HOLD_MILLIS) {
             return new Frame(State.HELD, trackedHz, lastConfidence, lastRms, age(nowMillis));
         }
