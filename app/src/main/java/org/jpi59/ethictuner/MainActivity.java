@@ -407,5 +407,12 @@ public final class MainActivity extends Activity {
     }
     private void updateSignal(double confidence) { signal.setVisibility(confidence > 0 ? View.VISIBLE : View.INVISIBLE); if (confidence > 0) signal.setText(getString(R.string.signal_stable, Math.round(confidence * 100))); }
     @Override public void onConfigurationChanged(Configuration configuration) { super.onConfigurationChanged(configuration); buildUi(); }
-    @Override protected void onPause() { stop(); super.onPause(); }
+    /**
+     * Temporary interruptions such as a notification, a permission surface or a call UI can
+     * pause this activity. They must not silently cancel a tuning session the person chose to
+     * keep running. The user stops it with the explicit control; closing the activity releases
+     * the recorder here. Android may still revoke the microphone for a real hardware or system
+     * conflict, which is reported as unavailable rather than hidden.
+     */
+    @Override protected void onDestroy() { stop(); super.onDestroy(); }
 }
