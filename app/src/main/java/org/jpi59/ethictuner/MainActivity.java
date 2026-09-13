@@ -38,9 +38,8 @@ public final class MainActivity extends Activity {
     private static final String[] NOTATIONS = {"Notación inglesa · C D E", "Notación latina · Do Re Mi"};
     private static final String[] ENGLISH_NOTES = {"C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"};
     private static final String[] LATIN_NOTES = {"Do", "Do♯", "Re", "Re♯", "Mi", "Fa", "Fa♯", "Sol", "Sol♯", "La", "La♯", "Si"};
-    private TextView note, frequency, cents, status, calibration, instrumentGuide, tuningState, signal;
-    private TuningGaugeView gauge;
-    private CentsMeterView centsMeter;
+    private TextView status, calibration, instrumentGuide, tuningState, signal;
+    private PrecisionDialView precisionDial;
     private Button toggle;
     private LinearLayout root;
     private LinearLayout tunerPanel;
@@ -67,6 +66,7 @@ public final class MainActivity extends Activity {
     private int pendingMidi = Integer.MIN_VALUE;
     private int pendingMidiFrames;
     private int a4 = 440;
+    private String lastNoteName = "—";
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -81,17 +81,13 @@ public final class MainActivity extends Activity {
         LinearLayout header = column();
         tunerPanel = column();
         LinearLayout controls = column();
-        title = text("Ethic Tuner", landscape ? 24 : 28); medium(title); header.addView(title);
-        settings = new Button(this); settings.setText(R.string.settings); settings.setTextSize(16); settings.setAllCaps(false); medium(settings); settings.setGravity(Gravity.CENTER); settings.setPadding(dp(20), dp(8), dp(20), dp(8)); settings.setMinWidth(0); settings.setMinHeight(dp(48)); settings.setContentDescription(getString(R.string.settings)); settings.setOnClickListener(v -> showSettings());
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(-2, -2); settingsParams.setMargins(0, dp(8), 0, dp(8)); header.addView(settings, settingsParams);
+        title = text("Ethic Tuner", landscape ? 22 : 25); medium(title); header.addView(title);
+        settings = new Button(this); settings.setText(R.string.settings); settings.setTextSize(15); settings.setAllCaps(false); medium(settings); settings.setGravity(Gravity.CENTER); settings.setPadding(dp(14), dp(4), dp(14), dp(4)); settings.setMinWidth(0); settings.setMinHeight(dp(40)); settings.setContentDescription(getString(R.string.settings)); settings.setOnClickListener(v -> showSettings());
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(-2, -2); settingsParams.setMargins(0, dp(2), 0, dp(2)); header.addView(settings, settingsParams);
         status = text(getString(R.string.waiting), 15);
-        darkSwitch = new Switch(this); darkSwitch.setText(R.string.dark_mode); darkSwitch.setTextSize(20); medium(darkSwitch); darkSwitch.setPadding(dp(7), 0, 0, 0); darkSwitch.setGravity(Gravity.CENTER_VERTICAL); darkSwitch.setContentDescription(getString(R.string.dark_mode)); darkSwitch.setChecked(darkMode); darkSwitch.setOnCheckedChangeListener((button, checked) -> { darkMode = checked; preferences.edit().putBoolean("dark_mode", checked).apply(); applyTheme(); }); header.addView(darkSwitch, new LinearLayout.LayoutParams(-1, -2));
-        tunerPanel.setPadding(dp(landscape ? 14 : 18), dp(landscape ? 10 : 16), dp(landscape ? 14 : 18), dp(landscape ? 10 : 16));
-        note = text("—", noteSize()); medium(note); note.setLetterSpacing(.02f); tunerPanel.addView(note);
-        LinearLayout readouts = new LinearLayout(this); readouts.setOrientation(LinearLayout.HORIZONTAL); readouts.setGravity(Gravity.CENTER);
-        frequency = text("— Hz", 21); cents = text("— cents", 21); numeric(frequency); numeric(cents); readouts.addView(frequency, weighted()); readouts.addView(cents, weighted()); tunerPanel.addView(readouts, new LinearLayout.LayoutParams(-1, -2));
-        centsMeter = new CentsMeterView(this); tunerPanel.addView(centsMeter, new LinearLayout.LayoutParams(-1, dp(landscape ? 62 : 72)));
-        gauge = new TuningGaugeView(this); tunerPanel.addView(gauge, new LinearLayout.LayoutParams(-1, dp(landscape ? 132 : 164)));
+        darkSwitch = new Switch(this); darkSwitch.setText(R.string.dark_mode); darkSwitch.setTextSize(16); medium(darkSwitch); darkSwitch.setPadding(dp(7), 0, 0, 0); darkSwitch.setGravity(Gravity.CENTER_VERTICAL); darkSwitch.setContentDescription(getString(R.string.dark_mode)); darkSwitch.setChecked(darkMode); darkSwitch.setOnCheckedChangeListener((button, checked) -> { darkMode = checked; preferences.edit().putBoolean("dark_mode", checked).apply(); applyTheme(); }); header.addView(darkSwitch, new LinearLayout.LayoutParams(-1, -2));
+        tunerPanel.setPadding(0, dp(landscape ? 6 : 8), 0, dp(landscape ? 4 : 6));
+        precisionDial = new PrecisionDialView(this); tunerPanel.addView(precisionDial, new LinearLayout.LayoutParams(-1, dp(landscape ? 270 : 350)));
         tuningState = text(getString(R.string.pitch_waiting), 18); medium(tuningState); tunerPanel.addView(tuningState);
         signal = text(getString(R.string.signal_waiting), 14); signal.setVisibility(hasPitch ? View.VISIBLE : View.INVISIBLE); tunerPanel.addView(signal);
         toggle = new Button(this); toggle.setText(R.string.start); toggle.setTextSize(18); toggle.setAllCaps(false); medium(toggle); toggle.setOnClickListener(v -> requestOrToggle());
@@ -105,7 +101,7 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true); scroll.addView(root);
         setContentView(scroll);
         applyTheme();
-        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); gauge.setPitch(lastDeviation, measurementState); centsMeter.setPitch(lastDeviation, measurementState); if (hasPitch) updateSignal(lastConfidence); }
+        if (running) { status.setText(R.string.listening); toggle.setText(R.string.stop); precisionDial.setReading(lastNoteName, lastHz, lastDeviation, measurementState); if (hasPitch) updateSignal(lastConfidence); }
     }
     private LinearLayout column() { LinearLayout layout = new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL); layout.setGravity(Gravity.CENTER_HORIZONTAL); return layout; }
     private LinearLayout.LayoutParams weighted() { return new LinearLayout.LayoutParams(0, -2, 1f); }
@@ -124,7 +120,6 @@ public final class MainActivity extends Activity {
             }
         };
     }
-    private int noteSize() { return getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 68 : 88; }
     private String guideFor(int instrument) { return notation == 1 ? INSTRUMENT_GUIDES_LATIN[instrument] : INSTRUMENT_GUIDES_ENGLISH[instrument]; }
     private void updateInstrumentGuide() {
         if (instrumentGuide == null) return;
@@ -196,14 +191,14 @@ public final class MainActivity extends Activity {
         int muted = darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted);
         int surface = darkMode ? Color.rgb(20, 23, 21) : getColor(R.color.surface);
         int action = actionColor();
-        root.setBackgroundColor(surface); tunerPanel.setBackground(roundedBackground(darkMode ? Color.rgb(25, 34, 30) : Color.rgb(237, 243, 238), darkMode ? Color.rgb(50, 89, 71) : Color.rgb(189, 207, 196), 24)); getWindow().setStatusBarColor(surface); getWindow().setNavigationBarColor(surface);
+        root.setBackgroundColor(surface); tunerPanel.setBackgroundColor(Color.TRANSPARENT); getWindow().setStatusBarColor(surface); getWindow().setNavigationBarColor(surface);
         int systemBars = darkMode ? 0 : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if (!darkMode && Build.VERSION.SDK_INT >= 26) systemBars |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         getWindow().getDecorView().setSystemUiVisibility(systemBars);
-        title.setTextColor(ink); status.setTextColor(muted); darkSwitch.setTextColor(ink); settings.setTextColor(action); settings.setBackground(roundedBackground(surface, action, 20)); note.setTextColor(action); frequency.setTextColor(ink); cents.setTextColor(ink); legal.setTextColor(action); privacy.setTextColor(muted); privacy.setAlpha(1f); signal.setTextColor(muted);
+        title.setTextColor(ink); status.setTextColor(muted); darkSwitch.setTextColor(ink); settings.setTextColor(action); settings.setBackground(roundedBackground(surface, action, 20)); legal.setTextColor(action); privacy.setTextColor(muted); privacy.setAlpha(1f); signal.setTextColor(muted);
         toggle.setTextColor(Color.rgb(248, 247, 243)); toggle.setBackground(roundedBackground(getColor(R.color.accent), getColor(R.color.accent), 18));
         tuningState.setTextColor(!hasPitch ? muted : inTune ? action : ink);
-        gauge.setDarkMode(darkMode); centsMeter.setDarkMode(darkMode);
+        precisionDial.setDarkMode(darkMode);
         if (settingsDialog != null && settingsDialog.isShowing()) {
             if (instrumentAdapter != null) instrumentAdapter.notifyDataSetChanged();
             if (notationAdapter != null) notationAdapter.notifyDataSetChanged();
@@ -249,7 +244,7 @@ public final class MainActivity extends Activity {
     private void stop() {
         running = false; ++captureGeneration; AudioRecord recorder = activeRecorder;
         if (recorder != null) try { recorder.stop(); } catch (IllegalStateException ignored) { }
-        hasPitch = false; lastConfidence = 0; measurementState = PitchTracker.State.NONE; displayedMidi = Integer.MIN_VALUE; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (gauge != null) gauge.setPitch(0, PitchTracker.State.NONE); if (centsMeter != null) centsMeter.setPitch(0, PitchTracker.State.NONE);
+        hasPitch = false; lastConfidence = 0; measurementState = PitchTracker.State.NONE; lastNoteName = "—"; displayedMidi = Integer.MIN_VALUE; pendingMidi = Integer.MIN_VALUE; pendingMidiFrames = 0; toggle.setText(R.string.start); status.setText(R.string.waiting); if (precisionDial != null) precisionDial.setReading(lastNoteName, 0, 0, PitchTracker.State.NONE);
         if (tuningState != null) { tuningState.setText(R.string.pitch_waiting); tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted)); signal.setVisibility(View.INVISIBLE); }
     }
     private boolean captureIsCurrent(long generation) { return running && generation == captureGeneration; }
@@ -301,11 +296,8 @@ public final class MainActivity extends Activity {
             hasPitch = false;
             measurementState = PitchTracker.State.NONE;
             lastHz = 0;
-            note.setText(R.string.no_note);
-            frequency.setText(R.string.no_frequency);
-            cents.setText(R.string.no_cents);
-            gauge.setPitch(0, PitchTracker.State.NONE);
-            centsMeter.setPitch(0, PitchTracker.State.NONE);
+            lastNoteName = "—";
+            precisionDial.setReading(lastNoteName, 0, 0, PitchTracker.State.NONE);
             tuningState.setText(R.string.pitch_waiting);
             tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
             signal.setVisibility(View.INVISIBLE);
@@ -346,11 +338,8 @@ public final class MainActivity extends Activity {
             lastHz = hz;
             lastDeviation = deviation;
             lastConfidence = confidence;
-            note.setText(name);
-            frequency.setText(String.format(java.util.Locale.US, "%.1f Hz", hz));
-            cents.setText(String.format(java.util.Locale.US, "%+d cents", deviation));
-            gauge.setPitch(deviation, state);
-            centsMeter.setPitch(deviation, state);
+            lastNoteName = name;
+            precisionDial.setReading(name, hz, deviation, state);
             if (state == PitchTracker.State.HELD) {
                 tuningState.setText(R.string.pitch_held);
                 tuningState.setTextColor(darkMode ? Color.rgb(177, 184, 177) : getColor(R.color.muted));
