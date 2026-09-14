@@ -19,10 +19,9 @@ android-verify:
   before_script:
     - apt-get update -qq
     - apt-get install -y -qq unzip wget
-    - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+    - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
     - wget -q -O /tmp/android-commandline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
-    - unzip -q /tmp/android-commandline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
-    - mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    - unzip -q /tmp/android-commandline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools/latest"
     - export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
     - yes | sdkmanager --licenses >/dev/null
     - sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
