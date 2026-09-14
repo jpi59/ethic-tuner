@@ -1,5 +1,15 @@
 plugins { id 'com.android.application' }
 
+import java.util.Properties
+
+def signingProperties = new Properties()
+def signingPropertiesFile = rootProject.file('keystore.properties')
+if (signingPropertiesFile.isFile()) {
+    signingPropertiesFile.withInputStream { signingProperties.load(it) }
+}
+def signingKeys = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+def releaseSigningConfigured = signingKeys.every { signingProperties.getProperty(it)?.trim() }
+
 android {
     namespace 'org.jpi59.ethictuner'
     compileSdk 36
@@ -7,11 +17,28 @@ android {
         applicationId 'org.jpi59.ethictuner'
         minSdk 24
         targetSdk 36
-        versionCode 5
-        versionName '1.0.4'
+        versionCode 29
+        versionName '1.0.28'
+    }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile rootProject.file(signingProperties.getProperty('storeFile'))
+                storePassword signingProperties.getProperty('storePassword')
+                keyAlias signingProperties.getProperty('keyAlias')
+                keyPassword signingProperties.getProperty('keyPassword')
+            }
+        }
     }
     buildTypes {
-        release { minifyEnabled true; shrinkResources true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
     dependenciesInfo { includeInApk = false; includeInBundle = false }
 }

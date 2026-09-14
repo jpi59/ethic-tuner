@@ -1,1 +1,1 @@
-Private offline chromatic tuner with clear pitch feedback.
+Private, offline chromatic tuner with precise pitch feedback.

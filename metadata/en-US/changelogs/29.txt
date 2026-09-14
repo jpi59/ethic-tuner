@@ -1,0 +1,5 @@
+Improved tuning stability and signal handling.
+
+Added an explicit in-tune state with a green inverse needle, optional local sound and persistent haptic confirmation.
+
+Added a calculated Hz reference, device noise-reduction control, responsive light/dark interface refinements and expanded privacy information.

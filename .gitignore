@@ -2,3 +2,12 @@
 build/
 app/build/
 local.properties
+# Release-signing material is deliberately local. Never commit private keys or
+# passwords; F-Droid builds and signs its own APK from the tagged source.
+keystore.properties
+key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem

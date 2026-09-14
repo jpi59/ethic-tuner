@@ -1,14 +1,19 @@
 Ethic Tuner is a local chromatic tuner for Android.
 
 Features:
-• Chromatic tuning and instrument presets for strings, piano, woodwinds and saxophones.
-• English or Latin note names.
-• A4 calibration from 424 to 456 Hz.
-• Light and dark themes with portrait and landscape layouts.
+• Chromatic tuning and instrument presets for strings, piano, recorder, woodwinds and saxophones.
+• English or Latin note names and A4 calibration from 424 to 456 Hz.
+• A clear in-tune state with a centred green inverse needle; the last stable reading remains visible if the input stops.
+• Optional local beep and haptic confirmation when a stable note enters the tuning window.
+• Optional Hz reference showing the measured frequency and equal-temperament target for the selected A4 value.
+• Device-provided noise reduction when available, with an in-app switch.
+• Light and dark themes that adapt to portrait and landscape layouts.
 
 Privacy:
-• Audio is analysed in memory and discarded.
+• Microphone samples are analysed in memory and discarded.
 • No audio files, accounts, analytics, advertising or network permission.
-• Preferences remain on the device.
+• Preferences remain on the device; Android backup is disabled.
+
+Ethic Tuner is a tuning aid. Readings can vary with microphone quality and environmental noise.
 
 The app is free software under GPL-3.0-or-later.

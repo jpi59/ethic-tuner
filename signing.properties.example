@@ -1,0 +1,6 @@
+# Copy this file to keystore.properties and keep that copy private and untracked.
+# Use a relative path from the repository root or an absolute path you control.
+storeFile=/absolute/path/to/ethic-tuner-release.keystore
+storePassword=replace-with-your-keystore-password
+keyAlias=replace-with-your-key-alias
+keyPassword=replace-with-your-key-password

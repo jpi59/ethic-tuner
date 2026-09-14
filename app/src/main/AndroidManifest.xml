@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@drawable/ic_ethic_tuner" android:label="@string/app_name" android:theme="@style/AppTheme" android:usesCleartextTraffic="false">
         <activity android:name=".MainActivity" android:configChanges="orientation|screenSize" android:exported="true">
             <intent-filter>
@@ -7,5 +11,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".TuningSessionService" android:exported="false" android:foregroundServiceType="microphone" />
     </application>
 </manifest>

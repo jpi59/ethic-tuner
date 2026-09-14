@@ -2,20 +2,27 @@
  <string name="app_name">Ethic Tuner</string>
  <string name="permission_rationale">Ethic Tuner usa el micrófono únicamente mientras afinas. Analiza el sonido en este dispositivo: no graba, no guarda ni envía audio.</string>
  <string name="microphone_title">Permiso de micrófono</string><string name="continue_action">Continuar</string><string name="not_now">Ahora no</string><string name="permission_needed">Necesitas permitir el micrófono para afinar</string>
+ <string name="notification_title">Indicador de afinación activa</string><string name="notification_rationale">Para que siempre veas que el micrófono continúa activo al cambiar temporalmente de pantalla, Ethic Tuner muestra una notificación persistente. No recopila ni transmite audio.</string>
  <string name="start">Empezar a afinar</string><string name="stop">Detener</string>
  <string name="listening">Escuchando en este dispositivo</string><string name="listening_filtered">Escuchando · reducción de ruido local activa</string><string name="waiting">Preparado</string>
- <string name="dark_mode">Modo oscuro</string>
+ <string name="dark_mode">Modo oscuro</string><string name="light_mode">Modo claro</string>
  <string name="settings">Ajustes</string><string name="instrument">Guía de instrumento</string><string name="done">Listo</string>
  <string name="notation">Notación musical</string>
- <string name="pitch_waiting">Toca una nota</string>
+ <string name="pitch_waiting">TOCA UNA NOTA</string>
  <string name="pitch_held">ÚLTIMA LECTURA · señal débil</string>
  <string name="pitch_ambiguous">LECTURA AMBIGUA · conserva la nota</string>
- <string name="in_tune">AFINADO · dentro de ±5 cents</string>
+ <string name="in_tune">ESTÁ AFINADO</string>
  <string name="pitch_low">SUBE EL TONO</string>
  <string name="pitch_high">BAJA EL TONO</string>
- <string name="signal_waiting">Esperando una señal estable</string><string name="signal_stable">Lectura estable · confianza del detector: %1$d%%</string><string name="signal_held">Señal débil · última lectura retenida</string><string name="signal_ambiguous">Sonido ambiguo · no se cambió de nota</string><string name="signal_unavailable">No se pudo iniciar el micrófono</string><string name="audio_unavailable">El micrófono no está disponible</string>
+ <string name="signal_waiting">Esperando una señal estable</string><string name="signal_stable">Lectura estable · confianza del detector: %1$d%%</string><string name="signal_unavailable">No se pudo iniciar el micrófono</string><string name="audio_unavailable">El micrófono no está disponible</string>
  <string name="calibration">Calibración A4: %1$d Hz</string>
  <string name="noise_reduction">Reducción de ruido del dispositivo</string><string name="noise_reduction_hint">Usa el filtro del sistema cuando esté disponible. Todo el audio permanece en este teléfono; puede variar según el micrófono.</string>
+ <string name="in_tune_sound">Aviso sonoro al afinar</string><string name="in_tune_sound_hint">Bip local y breve cuando la nota entra en afinación. Usa el volumen multimedia y se puede desactivar.</string>
+ <string name="test_sound">Probar sonido</string>
+ <string name="haptic_feedback">Confirmación por vibración</string><string name="haptic_feedback_hint">Pulsos fuertes y continuos mientras mantienes la nota afinada. Se detienen al salir de la afinación. Está desactivada inicialmente y no recopila datos.</string>
+ <string name="test_vibration">Probar vibración</string>
+ <string name="reference_frequency">Referencia de Hz</string><string name="reference_frequency_hint">Muestra la frecuencia medida y el objetivo matemático de cada nota según A4. La exactitud práctica depende del micrófono y del entorno.</string>
  <string name="license_action">Información y licencia</string><string name="license_title">Ethic Tuner · software libre</string><string name="license_message">Ethic Tuner se ofrece bajo GPL-3.0-or-later, sin garantía. Quien distribuya esta aplicación debe entregar una copia de la licencia y ofrecer también el código fuente correspondiente.</string>
  <string name="privacy">No recopilamos ni compartimos datos personales.</string>
+ <string name="tuning_notification_channel">Afinación activa</string><string name="tuning_notification_description">Indicador visible mientras Ethic Tuner usa el micrófono.</string><string name="tuning_notification_title">Ethic Tuner está afinando</string><string name="tuning_notification_text">El micrófono está activo. Abre la app y pulsa Detener para finalizar.</string>
 </resources>
