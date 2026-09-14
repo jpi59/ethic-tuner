@@ -1,0 +1,25 @@
+# Copy this file to fdroiddata/metadata/org.jpi59.ethictuner.yml for the
+# submission. The build commit is deliberately pinned to the reviewed source.
+Categories:
+  - Multimedia
+License: GPL-3.0-or-later
+AuthorName: jpi59
+SourceCode: https://github.com/jpi59/ethic-tuner
+IssueTracker: https://github.com/jpi59/ethic-tuner/issues
+Changelog: https://github.com/jpi59/ethic-tuner/releases
+
+RepoType: git
+Repo: https://github.com/jpi59/ethic-tuner.git
+
+Builds:
+  - versionName: '1.0.28'
+    versionCode: 29
+    commit: 0be874a1ea160a94424263a2ead45cc455e30d3c
+    gradle:
+      - yes
+    output: app/build/outputs/apk/release/app-release-unsigned.apk
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: '1.0.28'
+CurrentVersionCode: 29
