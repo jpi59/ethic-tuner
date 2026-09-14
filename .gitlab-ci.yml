@@ -11,7 +11,6 @@ variables:
 cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
-    - .android-sdk/
     - .gradle/caches/
     - .gradle/wrapper/
 
