@@ -1,10 +1,11 @@
-image: eclipse-temurin:17-jdk
+image: eclipse-temurin:17-jdk-jammy
 
 stages:
   - verify
 
 variables:
   ANDROID_SDK_ROOT: "$CI_PROJECT_DIR/.android-sdk"
+  ANDROID_HOME: "$CI_PROJECT_DIR/.android-sdk"
   GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
 
 cache:
@@ -19,11 +20,12 @@ android-verify:
   before_script:
     - apt-get update -qq
     - apt-get install -y -qq unzip wget
-    - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    - mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
     - wget -q -O /tmp/android-commandline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
-    - unzip -q /tmp/android-commandline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+    - unzip -q /tmp/android-commandline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+    - mv -T "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
     - export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
-    - yes | sdkmanager --licenses >/dev/null
+    - yes | sdkmanager --licenses >/dev/null || true
     - sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
   script:
     - ./gradlew :app:testDebugUnitTest :app:assembleRelease :app:lintVitalRelease
