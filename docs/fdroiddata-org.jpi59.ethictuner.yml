@@ -14,7 +14,7 @@ Repo: https://github.com/jpi59/ethic-tuner.git
 Builds:
   - versionName: '1.0.28'
     versionCode: 29
-    commit: 0be874a1ea160a94424263a2ead45cc455e30d3c
+    commit: 6a00da734c30d4d3ca9c9749200067c8bcfb5088
     gradle:
       - yes
     output: app/build/outputs/apk/release/app-release-unsigned.apk
