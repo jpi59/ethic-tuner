@@ -344,7 +344,7 @@ public final class MainActivity extends Activity {
     private void numeric(TextView view) { view.setFontFeatureSettings("tnum"); }
     private int dp(int n) { return Math.round(n * getResources().getDisplayMetrics().density); }
     private GradientDrawable roundedBackground(int fill, int stroke, int radius) { GradientDrawable background = new GradientDrawable(); background.setColor(fill); background.setCornerRadius(dp(radius)); background.setStroke(dp(1), stroke); return background; }
-    private void showLegalNotice() { new AlertDialog.Builder(this).setTitle(R.string.license_title).setMessage(R.string.license_message).setPositiveButton(android.R.string.ok, null).show(); }
+    private void showLegalNotice() { EthicEcosystemMenu.show(this, darkMode); }
     private void requestOrToggle() {
         if (running) { stop(); return; }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) { requestNotificationThenStart(); return; }
