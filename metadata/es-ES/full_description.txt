@@ -1,0 +1,19 @@
+Ethic Tuner es un afinador cromático local para Android.
+
+Características:
+• Afinación cromática y preajustes de instrumentos para cuerdas, piano, flauta dulce, instrumentos de viento de madera y saxofones.
+• Nombres de notas en notación inglesa o latina y calibración de A4 de 424 a 456 Hz.
+• Un estado afinado claro con aguja invertida verde centrada; la última lectura estable permanece visible si se detiene la entrada.
+• Pitido local opcional y confirmación háptica cuando una nota estable entra en la ventana de afinación.
+• Referencia de Hz opcional que muestra la frecuencia medida y el objetivo de temperamento igual para el valor de A4 seleccionado.
+• Reducción de ruido del dispositivo cuando esté disponible, con interruptor en la aplicación.
+• Temas claro y oscuro que se adaptan a orientaciones vertical y horizontal.
+
+Privacidad:
+• Las muestras del micrófono se analizan en memoria y se descartan.
+• Sin archivos de audio, cuentas, analítica, publicidad ni permisos de red.
+• Las preferencias permanecen en el dispositivo; la copia de seguridad de Android está desactivada.
+
+Ethic Tuner es una ayuda para la afinación. Las lecturas pueden variar según la calidad del micrófono y el ruido ambiental.
+
+La aplicación es software libre bajo GPL-3.0-or-later.

@@ -1,6 +1,6 @@
 # Privacy statement
 
-Last reviewed: 2026-09-14 for version 1.0.28 (`versionCode 29`).
+Last reviewed: 2026-09-14 for version 1.0.29 (`versionCode 30`).
 
 Ethic Tuner works locally on the device. Its manifest declares
 `RECORD_AUDIO`, requested at runtime only when the person starts tuning. On

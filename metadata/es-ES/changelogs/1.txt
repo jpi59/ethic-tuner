@@ -1,0 +1,1 @@
+Lanzamiento público inicial: análisis de tono local, preajustes de instrumentos, selección de notación, calibración y temas claro/oscuro accesibles.

@@ -1,0 +1,5 @@
+Mejora de la estabilidad de afinación y el manejo de señal.
+
+Añadido un estado afinado explícito con aguja invertida verde, sonido local opcional y confirmación háptica continua.
+
+Añadida referencia calculada de Hz, control de reducción de ruido del dispositivo, mejoras de interfaz responsiva clara/oscura e información de privacidad ampliada.

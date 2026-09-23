@@ -12,8 +12,8 @@ RepoType: git
 Repo: https://github.com/jpi59/ethic-tuner.git
 
 Builds:
-  - versionName: 1.0.28
-    versionCode: 29
+  - versionName: 1.0.29
+    versionCode: 30
     commit: 6a00da734c30d4d3ca9c9749200067c8bcfb5088
     gradle:
       - yes
@@ -21,5 +21,5 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 1.0.28
-CurrentVersionCode: 29
+CurrentVersion: 1.0.29
+CurrentVersionCode: 30
